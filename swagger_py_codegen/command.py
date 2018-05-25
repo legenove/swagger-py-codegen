@@ -19,6 +19,7 @@ from ._version import __version__
 from .flask import FlaskGenerator
 from .tornado import TornadoGenerator
 from .falcon import FalconGenerator
+from .django import DjangoGenerator
 from .sanic import SanicGenerator
 from .parser import Swagger
 from .base import Template
@@ -125,12 +126,15 @@ def generate(destination, swagger_doc, force=False, package=None,
         except ValidationError as e:
             raise click.ClickException(str(e))
     swagger = Swagger(data)
+    swagger.package = package
     if templates == 'tornado':
         generator = TornadoGenerator(swagger)
     elif templates == 'falcon':
         generator = FalconGenerator(swagger)
     elif templates == 'sanic':
         generator = SanicGenerator(swagger)
+    elif templates == 'django':
+        generator = DjangoGenerator(swagger)
     else:
         generator = FlaskGenerator(swagger)
     generator.with_spec = specification

@@ -1,0 +1,4 @@
+django
+jsonschema
+six
+werkzeug
