@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import six
-
 # TODO: datetime support
 
 {% include '_do_not_change.tpl' %}
@@ -31,15 +29,23 @@ scopes = {
 }
 
 
+class Current(object):
+
+    request = None
+
+
+current = Current()
+
+
 class Security(object):
 
     def __init__(self):
         super(Security, self).__init__()
-        self._loader = lambda: []
+        self._loader = lambda x: []
 
     @property
     def scopes(self):
-        return self._loader()
+        return self._loader(current.request)
 
     def scopes_loader(self, func):
         self._loader = func
@@ -51,3 +57,4 @@ security = Security()
 {{ merge_default }}
 
 {{ normalize }}
+

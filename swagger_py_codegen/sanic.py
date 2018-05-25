@@ -3,61 +3,67 @@ import re
 from collections import OrderedDict
 
 from .base import Code, CodeGenerator
-from .jsonschema import Schema, SchemaGenerator, build_default
-import six
+from .jsonschema import build_default, build_data
 
 SUPPORT_METHODS = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head']
 
 
+class Schema(Code):
+
+    template = 'sanic/schemas.tpl'
+    dest_template = '%(package)s/%(module)s/schemas.py'
+    override = True
+
+
 class Router(Code):
 
-    template = 'flask/routers.tpl'
+    template = 'sanic/routers.tpl'
     dest_template = '%(package)s/%(module)s/routes.py'
     override = True
 
 
 class View(Code):
 
-    template = 'flask/view.tpl'
+    template = 'sanic/view.tpl'
     dest_template = '%(package)s/%(module)s/api/%(view)s.py'
     override = False
 
 
 class Specification(Code):
 
-    template = 'flask/specification.tpl'
+    template = 'sanic/specification.tpl'
     dest_template = '%(package)s/static/%(module)s/swagger.json'
     override = True
 
 
 class Validator(Code):
 
-    template = 'flask/validators.tpl'
+    template = 'sanic/validators.tpl'
     dest_template = '%(package)s/%(module)s/validators.py'
     override = True
 
 
 class Api(Code):
 
-    template = 'flask/api.tpl'
+    template = 'sanic/api.tpl'
     dest_template = '%(package)s/%(module)s/api/__init__.py'
 
 
 class Blueprint(Code):
 
-    template = 'flask/blueprint.tpl'
+    template = 'sanic/blueprint.tpl'
     dest_template = '%(package)s/%(module)s/__init__.py'
 
 
 class App(Code):
 
-    template = 'flask/app.tpl'
+    template = 'sanic/app.tpl'
     dest_template = '%(package)s/__init__.py'
 
 
 class Requirements(Code):
 
-    template = 'flask/requirements.tpl'
+    template = 'sanic/requirements.tpl'
     dest_template = 'requirements.txt'
 
 
@@ -67,7 +73,13 @@ class UIIndex(Code):
     dest_template = '%(package)s/static/swagger-ui/index.html'
 
 
-def _swagger_to_flask_url(url, swagger_path_node):
+class SchemaGenerator(CodeGenerator):
+
+    def _process(self):
+        yield Schema(build_data(self.swagger))
+
+
+def _swagger_to_sanic_url(url, swagger_path_node):
     types = {
         'integer': 'int',
         'long': 'int',
@@ -97,12 +109,8 @@ def _swagger_to_flask_url(url, swagger_path_node):
     return url, params
 
 
-if six.PY3:
-    def _remove_characters(text, deletechars):
-        return text.translate({ord(x): None for x in deletechars})
-else:
-    def _remove_characters(text, deletechars):
-        return text.translate(None, deletechars)
+def _remove_characters(text, deletechars):
+    return text.translate({ord(x): None for x in deletechars})
 
 
 def _path_to_endpoint(swagger_path):
@@ -125,12 +133,12 @@ def _location(swagger_location):
     return location_map.get(swagger_location)
 
 
-class FlaskGenerator(CodeGenerator):
+class SanicGenerator(CodeGenerator):
 
     dependencies = [SchemaGenerator]
 
     def __init__(self, swagger):
-        super(FlaskGenerator, self).__init__(swagger)
+        super(SanicGenerator, self).__init__(swagger)
         self.with_spec = False
         self.with_ui = False
 
@@ -139,21 +147,21 @@ class FlaskGenerator(CodeGenerator):
             return code
         schemas = code
         # schemas default key likes `('/some/path/{param}', 'method')`
-        # use flask endpoint to replace default validator's key,
+        # use sanic endpoint to replace default validator's key,
         # example: `('some_path_param', 'method')`
         validators = OrderedDict()
-        for k, v in six.iteritems(schemas.data['validators']):
-            locations = {_location(loc): val for loc, val in six.iteritems(v)}
+        for k, v in schemas.data['validators'].items():
+            locations = {_location(loc): val for loc, val in v.items()}
             validators[(_path_to_endpoint(k[0]), k[1])] = locations
 
         # filters
         filters = OrderedDict()
-        for k, v in six.iteritems(schemas.data['filters']):
+        for k, v in schemas.data['filters'].items():
             filters[(_path_to_endpoint(k[0]), k[1])] = v
 
         # scopes
         scopes = OrderedDict()
-        for k, v in six.iteritems(schemas.data['scopes']):
+        for k, v in schemas.data['scopes'].items():
             scopes[(_path_to_endpoint(k[0]), k[1])] = v
 
         schemas.data['validators'] = validators
@@ -170,7 +178,7 @@ class FlaskGenerator(CodeGenerator):
 
         for paths, data in self.swagger.search(['paths', '*']):
             swagger_path = paths[-1]
-            url, params = _swagger_to_flask_url(swagger_path, data)
+            url, params = _swagger_to_sanic_url(swagger_path, data)
             endpoint = _path_to_endpoint(swagger_path)
             name = _path_to_resource_name(swagger_path)
 
@@ -183,7 +191,7 @@ class FlaskGenerator(CodeGenerator):
                 if validator:
                     methods[method]['requests'] = list(validator.keys())
 
-                for status, res_data in six.iteritems(data[method].get('responses', {})):
+                for status, res_data in data[method].get('responses', {}).items():
                     if isinstance(status, int) or status.isdigit():
                         example = res_data.get('examples', {}).get('application/json')
 

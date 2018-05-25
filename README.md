@@ -1,12 +1,20 @@
-# Flask/Tornado RESTful Application Code Generator
+# Python RESTful Web Framework Generator
 
 [![Build Status][travis-image]][travis-url] [![PyPi Version][pypi-image]][pypi-url]
 
 ## Overview
 
-Generate Flask/Tornado-RESTful application code from a Swagger Specification doc.
 
-**Alpha version for now, it can not handle all validation properly.**
+Swagger Py Codegen is a Python web framework generator, which can help you generate a Python web framework automatically based on a given Swagger Specification doc. Currently, the following languages/frameworks are supported:
+
+
+* [Flask](http://flask.pocoo.org/) (Python)
+* [Tornado](http://www.tornadoweb.org/en/stable/) (Python)
+* [Falcon](https://falconframework.org/) (Python)
+* [Sanic](https://github.com/channelcat/sanic) (Python)
+
+
+**Alpha version for now, it may not handle all validation properly. If you found a bug, feel free to contact us.**
 
 
 ## Install
@@ -25,26 +33,24 @@ swagger_py_codegen --swagger-doc api.yml example-app
 
 Command Options:
 
-    -s, --swagger, --swagger-doc    Swagger doc file.  [required]
+	-s, --swagger, --swagger-doc    Swagger doc file.  [required]
 	-f, --force                     Force overwrite.
 	-p, --package                   Package name / application name.
 	-t, --template-dir              Path of your custom templates directory.
 	--spec, --specification         Generate online specification json response.
 	--ui                            Generate swagger ui.
-	-j, --jobs INTEGER              Parallel jobs for processing.
-	-tlp, --templates               gen flask/tornado templates,default flask.
+	--validate                      Validate swagger file.
+	-tlp, --templates               gen flask/tornado/falcon templates, default flask.
 	--version                       Show current version.
 	--help                          Show this message and exit.
 
 ## Examples:
 
-Generate example-app from [apis.yml](https://github.com/guokr/swagger-py-codegen/blob/master/api.yml "Title"):
+Generate example-app from [api.yml](https://github.com/guokr/swagger-py-codegen/blob/master/api.yml "Title"):
 
-    $tree
-	.
-	|__ api.yml
+#### Flask Example
 
-    $ swagger_py_codegen -s  api.yml  example-app -p demo
+    $ swagger_py_codegen -s api.yml example-app -p demo
     $ tree (flask-demo)
 	.
 	|__ api.yml
@@ -54,18 +60,17 @@ Generate example-app from [apis.yml](https://github.com/guokr/swagger-py-codegen
 	   |  |__ v1
 	   |     |__ api
 	   |     |  |__ __init__.py
-	   |     |  |__ oauth_auth_approach_approach.py
-	   |     |  |__ oauth_auth_approach.py
-	   |     |  |__ users_token.py
-	   |     |  |__ users_current.py
-	   |     |  |__ users.py
+	   |     |  |__ pets.py
+	   |     |  |__ pets_petId.py
 	   |     |__ __init__.py
 	   |     |__ routes.py
 	   |     |__ schemas.py
 	   |     |__ validators.py
 	   |__ requirements.txt
 
-	$ swagger_py_codegen -s  docs/panel.yml  example-app -p demo -tlp=tornado
+#### Tornado Example
+
+	$ swagger_py_codegen -s api.yml example-app -p demo -tlp=tornado
     $ tree (tornado-demo)
 	.
 	|__ api.yml
@@ -77,16 +82,57 @@ Generate example-app from [apis.yml](https://github.com/guokr/swagger-py-codegen
 	   |  |__ v1
 	   |     |__ api
 	   |     |  |__ __init__.py
-	   |     |  |__ oauth_auth_approach_approach.py
-	   |     |  |__ oauth_auth_approach.py
-	   |     |  |__ users_token.py
-	   |     |  |__ users_current.py
-	   |     |  |__ users.py
+	   |     |  |__ pets.py
+	   |     |  |__ pets_petId.py
 	   |     |__ __init__.py
 	   |     |__ routes.py
 	   |     |__ schemas.py
 	   |     |__ validators.py
 	   |__ requirements.txt
+
+#### Falcon Example
+
+    $ swagger_py_codegen -s api.yml example-app -p demo -tlp=falcon
+    $ tree (falcon-demo)
+	.
+	|__ api.yml
+	|__ example-app
+	   |__ demo
+	   |  |__ __init__.py
+	   |  |__ v1
+	   |     |__ api
+	   |     |  |__ __init__.py
+	   |     |  |__ pets.py
+	   |     |  |__ pets_petId.py
+	   |     |__ __init__.py
+	   |     |__ routes.py
+	   |     |__ schemas.py
+	   |     |__ validators.py
+	   |__ requirements.txt
+
+
+#### Sanic Example
+
+    $ swagger_py_codegen -s api.yml example-app -p demo -tlp=sanic
+    $ tree (sanic-demo)
+	.
+	|__ api.yml
+	|__ example-app
+	   |__ demo
+	   |  |__ __init__.py
+	   |  |__ v1
+	   |     |__ api
+	   |     |  |__ __init__.py
+	   |     |  |__ pets.py
+	   |     |  |__ pets_petId.py
+	   |     |__ __init__.py
+	   |     |__ routes.py
+	   |     |__ schemas.py
+	   |     |__ validators.py
+	   |__ requirements.txt
+
+
+#### Run Web Server
 
 Install example-app requirements:
 
@@ -98,19 +144,33 @@ Start example-app:
     $ cd demo
     $ python __init__.py
 
-And generate example-app-ui from apis.yml with ui:
+And generate example-app-ui from api.yml with ui:
 
-    $ swagger_py_codegen -s  api.yml  example-app-ui -p demo-ui --ui --spec
+    $ swagger_py_codegen -s api.yml  example-app-ui -p demo-ui --ui --spec
 
-Then you can visit http://127.0.0.1:5000/static/swagger-ui/index.html in a browser.
+Then you can visit [http://127.0.0.1:5000/static/swagger-ui/index.html](http://127.0.0.1:5000/static/swagger-ui/index.html) in a browser.
+
+
+#### OAuth2 Scopes Usage
+
+See the [wiki](https://github.com/guokr/swagger-py-codegen/wiki/OAuth2-Scopes-Usage)
+
+
+## Compatibility
+
+|component|compatibility|
+|-----|-----|
+|OpenAPI Spec|2.0|
+|Python|2.\*, 3.\*(Sanic only 3.\*)|
+
 
 ## Authors
---------
+
 See the [AUTHORS](https://github.com/guokr/swagger-py-codegen/blob/master/AUTHORS "Title").
 
 
 ## License
---------
+
 MIT
 
 [travis-url]: https://travis-ci.org/guokr/swagger-py-codegen

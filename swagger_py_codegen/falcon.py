@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 import re
 from collections import OrderedDict
 
@@ -11,53 +11,53 @@ SUPPORT_METHODS = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head']
 
 class Router(Code):
 
-    template = 'flask/routers.tpl'
+    template = 'falcon/routers.tpl'
     dest_template = '%(package)s/%(module)s/routes.py'
     override = True
 
 
 class View(Code):
 
-    template = 'flask/view.tpl'
+    template = 'falcon/view.tpl'
     dest_template = '%(package)s/%(module)s/api/%(view)s.py'
     override = False
 
 
 class Specification(Code):
 
-    template = 'flask/specification.tpl'
+    template = 'falcon/specification.tpl'
     dest_template = '%(package)s/static/%(module)s/swagger.json'
     override = True
 
 
 class Validator(Code):
 
-    template = 'flask/validators.tpl'
+    template = 'falcon/validators.tpl'
     dest_template = '%(package)s/%(module)s/validators.py'
     override = True
 
 
 class Api(Code):
 
-    template = 'flask/api.tpl'
+    template = 'falcon/api.tpl'
     dest_template = '%(package)s/%(module)s/api/__init__.py'
 
 
 class Blueprint(Code):
 
-    template = 'flask/blueprint.tpl'
+    template = 'falcon/blueprint.tpl'
     dest_template = '%(package)s/%(module)s/__init__.py'
 
 
 class App(Code):
 
-    template = 'flask/app.tpl'
+    template = 'falcon/app.tpl'
     dest_template = '%(package)s/__init__.py'
 
 
 class Requirements(Code):
 
-    template = 'flask/requirements.tpl'
+    template = 'falcon/requirements.tpl'
     dest_template = 'requirements.txt'
 
 
@@ -67,7 +67,7 @@ class UIIndex(Code):
     dest_template = '%(package)s/static/swagger-ui/index.html'
 
 
-def _swagger_to_flask_url(url, swagger_path_node):
+def _swagger_to_falcon_url(url, swagger_path_node):
     types = {
         'integer': 'int',
         'long': 'int',
@@ -76,7 +76,7 @@ def _swagger_to_flask_url(url, swagger_path_node):
     }
     node = swagger_path_node
     params = re.findall(r'\{([^\}]+?)\}', url)
-    url = re.sub(r'{(.*?)}', '<\\1>', url)
+    url = re.sub(r'{(.*?)}', '{\\1}', url)
 
     def _type(parameters):
         for p in parameters:
@@ -84,7 +84,7 @@ def _swagger_to_flask_url(url, swagger_path_node):
                 continue
             t = p.get('type', 'string')
             if t in types:
-                yield '<%s>' % p['name'], '<%s:%s>' % (types[t], p['name'])
+                yield '{%s}' % p['name'], '{%s}' % p['name']
 
     for old, new in _type(node.get('parameters', [])):
         url = url.replace(old, new)
@@ -118,19 +118,19 @@ def _path_to_resource_name(swagger_path):
 def _location(swagger_location):
     location_map = {
         'body': 'json',
-        'header': 'headers',
         'formData': 'form',
-        'query': 'args'
+        'header': 'headers',
+        'query': 'params'
     }
     return location_map.get(swagger_location)
 
 
-class FlaskGenerator(CodeGenerator):
+class FalconGenerator(CodeGenerator):
 
     dependencies = [SchemaGenerator]
 
     def __init__(self, swagger):
-        super(FlaskGenerator, self).__init__(swagger)
+        super(FalconGenerator, self).__init__(swagger)
         self.with_spec = False
         self.with_ui = False
 
@@ -139,7 +139,7 @@ class FlaskGenerator(CodeGenerator):
             return code
         schemas = code
         # schemas default key likes `('/some/path/{param}', 'method')`
-        # use flask endpoint to replace default validator's key,
+        # use falcon endpoint to replace default validator's key,
         # example: `('some_path_param', 'method')`
         validators = OrderedDict()
         for k, v in six.iteritems(schemas.data['validators']):
@@ -170,7 +170,7 @@ class FlaskGenerator(CodeGenerator):
 
         for paths, data in self.swagger.search(['paths', '*']):
             swagger_path = paths[-1]
-            url, params = _swagger_to_flask_url(swagger_path, data)
+            url, params = _swagger_to_falcon_url(swagger_path, data)
             endpoint = _path_to_endpoint(swagger_path)
             name = _path_to_resource_name(swagger_path)
 
@@ -189,15 +189,15 @@ class FlaskGenerator(CodeGenerator):
 
                         if not example:
                             example = build_default(res_data.get('schema'))
-                        response = example, int(status), build_default(res_data.get('headers'))
+                        response = example, 'falcon.HTTP_%s' % int(status), build_default(res_data.get('headers')) or {}
                         methods[method]['response'] = response
                         break
 
             views.append(dict(
                 url=url,
                 params=params,
-                endpoint=endpoint,
                 methods=methods,
+                endpoint=endpoint,
                 name=name
             ))
 

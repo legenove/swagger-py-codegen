@@ -1,10 +1,11 @@
 from __future__ import absolute_import
+
+import six
 from collections import OrderedDict
 from inspect import getsource
 
 from .base import Code, CodeGenerator
 from .parser import schema_var_name
-import six
 
 
 class Schema(Code):
@@ -19,7 +20,6 @@ def _parameters_to_schemas(params):
     for location in locations:
         required = []
         properties = {}
-        type_ = 'object'
         for param in params:
             if param.get('in') != location:
                 continue
@@ -96,6 +96,7 @@ def build_data(swagger):
         validators=validators,
         filters=filters,
         scopes=scopes,
+        base_path=swagger.base_path,
         merge_default=getsource(merge_default),
         normalize=getsource(normalize)
     )
@@ -129,9 +130,6 @@ def build_default(schema):
 
 
 def normalize(schema, data, required_defaults=None):
-
-    import six
-
     if required_defaults is None:
         required_defaults = {}
     errors = []
@@ -155,7 +153,7 @@ def normalize(schema, data, required_defaults=None):
         def keys(self):
             if isinstance(self.data, dict):
                 return list(self.data.keys())
-            return list(vars(self.data).keys())
+            return list(getattr(self.data, '__dict__', {}).keys())
 
         def get_check(self, key, default=None):
             if isinstance(self.data, dict):
@@ -171,10 +169,26 @@ def normalize(schema, data, required_defaults=None):
                     has_key = True
             return value, has_key
 
+    def _merge_dict(src, dst):
+        for k, v in six.iteritems(dst):
+            if isinstance(src, dict):
+                if isinstance(v, dict):
+                    r = _merge_dict(src.get(k, {}), v)
+                    src[k] = r
+                else:
+                    src[k] = v
+            else:
+                src = {k: v}
+        return src
+
     def _normalize_dict(schema, data):
         result = {}
         if not isinstance(data, DataWrapper):
             data = DataWrapper(data)
+
+        for _schema in schema.get('allOf', []):
+            rs_component = _normalize(_schema, data)
+            _merge_dict(result, rs_component)
 
         for key, _schema in six.iteritems(schema.get('properties', {})):
             # set default
@@ -193,13 +207,8 @@ def normalize(schema, data, required_defaults=None):
                     errors.append(dict(name='property_missing',
                                        message='`%s` is required' % key))
 
-        for _schema in schema.get('allOf', []):
-            rs_component = _normalize(_schema, data)
-            rs_component.update(result)
-            result = rs_component
-
         additional_properties_schema = schema.get('additionalProperties', False)
-        if additional_properties_schema:
+        if additional_properties_schema is not False:
             aproperties_set = set(data.keys()) - set(result.keys())
             for pro in aproperties_set:
                 result[pro] = _normalize(additional_properties_schema, data.get(pro))
@@ -222,6 +231,8 @@ def normalize(schema, data, required_defaults=None):
             return data
 
     def _normalize(schema, data):
+        if schema is True or schema == {}:
+            return data
         if not schema:
             return None
         funcs = {
@@ -230,7 +241,7 @@ def normalize(schema, data, required_defaults=None):
             'default': _normalize_default,
         }
         type_ = schema.get('type', 'object')
-        if not type_ in funcs:
+        if type_ not in funcs:
             type_ = 'default'
 
         return funcs[type_](schema, data)

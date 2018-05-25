@@ -1,24 +1,36 @@
 from __future__ import absolute_import
+from os import path
 import codecs
 try:
     import simplejson as json
 except ImportError:
     import json
-from multiprocessing import Pool
 from os import makedirs
 from os.path import join, exists, dirname
 
+import six
 import yaml
 import click
+
+import flex
+from flex.exceptions import ValidationError
 
 from ._version import __version__
 from .flask import FlaskGenerator
 from .tornado import TornadoGenerator
+from .falcon import FalconGenerator
+from .sanic import SanicGenerator
 from .parser import Swagger
 from .base import Template
 
 
+def get_ref_filepath(filename, ref_file):
+    ref_file = path.normpath(path.join(path.dirname(filename), ref_file))
+    return ref_file
+
+
 def spec_load(filename):
+    spec_data = {}
     if filename.endswith('.json'):
         loader = json.load
     elif filename.endswith('.yml') or filename.endswith('.yaml'):
@@ -32,7 +44,19 @@ def spec_load(filename):
             else:
                 loader = yaml.load
     with codecs.open(filename, 'r', 'utf-8') as f:
-        return loader(f)
+        data = loader(f)
+        spec_data.update(data)
+        for field, values in six.iteritems(data):
+            if field not in ['definitions', 'parameters', 'paths']:
+                continue
+            if not isinstance(values, dict):
+                continue
+            for _field, value in six.iteritems(values):
+                if _field == '$ref' and value.endswith('.yml'):
+                    _filepath = get_ref_filepath(filename, value)
+                    field_data = spec_load(_filepath)
+                    spec_data[field] = field_data
+        return spec_data
 
 
 def write(dist, content):
@@ -80,22 +104,33 @@ def print_version(ctx, param, value):
 @click.option('--ui',
               default=False, is_flag=True,
               help='Generate swagger ui.')
-@click.option('-j', '--jobs',
-              default=4, help='Parallel jobs for processing.')
+@click.option('--validate',
+              default=False, is_flag=True,
+              help='Validate swagger file.')
 @click.option('-tlp', '--templates',
-              default='flask', help='gen flask/tornado templates,default flask.')
+              default='flask',
+              help='gen flask/tornado/falcon/sanic templates, default flask.')
 @click.option('--version', is_flag=True, callback=print_version,
               expose_value=False, is_eager=True,
               help='Show current version.')
 def generate(destination, swagger_doc, force=False, package=None,
              template_dir=None, templates='flask',
-             specification=False, ui=False, jobs=4):
-    pool = Pool(processes=int(jobs))
+             specification=False, ui=False, validate=False):
     package = package or destination.replace('-', '_')
     data = spec_load(swagger_doc)
-    swagger = Swagger(data, pool)
+    if validate:
+        try:
+            flex.core.parse(data)
+            click.echo("Validation passed")
+        except ValidationError as e:
+            raise click.ClickException(str(e))
+    swagger = Swagger(data)
     if templates == 'tornado':
         generator = TornadoGenerator(swagger)
+    elif templates == 'falcon':
+        generator = FalconGenerator(swagger)
+    elif templates == 'sanic':
+        generator = SanicGenerator(swagger)
     else:
         generator = FlaskGenerator(swagger)
     generator.with_spec = specification
@@ -129,4 +164,3 @@ def generate(destination, swagger_doc, force=False, package=None,
 
         if status != 'skip':
             write(dest, source)
-
